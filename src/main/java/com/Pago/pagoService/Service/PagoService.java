@@ -1,11 +1,6 @@
 package com.Pago.pagoService.Service;
 
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
-
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -13,7 +8,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 @Service
 public class PagoService {
@@ -41,16 +40,19 @@ public class PagoService {
         // Imprimir la respuesta completa para depurar
         System.out.println("Código de estado: " + response.getStatusCode());
         System.out.println("Cuerpo de la respuesta: " + response.getBody());
+
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new RuntimeException("Fallo en Aldeamo con código: " + response.getStatusCode());
+        }
     
         guardarRespuestaEnArchivo("Respuesta Aldeamo: " + response.getBody());
         return response;
-    
-        //enviarATwilio(e);
-        
     }
 
     // Método fallback que envía la solicitud a Twilio si Aldeamo falla
-    public ResponseEntity<String> enviarATwilio(Throwable t) {
+    public ResponseEntity<String> enviarATwilio(Exception e) {  // Cambiado de Throwable a Exception
+        System.out.println("Fallback invocado debido a: " + e.getMessage());
+        
         String urlTwilio = "http://localhost:8082/notificacion"; // URL de Twilio
 
         Map<String, Object> requestBody = new HashMap<>();
@@ -64,8 +66,8 @@ public class PagoService {
             ResponseEntity<String> response = restTemplate.exchange(urlTwilio, HttpMethod.POST, request, String.class);
             guardarRespuestaEnArchivo("Respuesta Twilio: " + response.getBody());
             return response;
-        } catch (Exception e) {
-            guardarRespuestaEnArchivo("Error al enviar a Twilio: " + e.getMessage());
+        } catch (Exception ex) {
+            guardarRespuestaEnArchivo("Error al enviar a Twilio: " + ex.getMessage());
             return ResponseEntity.status(500).body("No se pudo enviar la notificación ni a Aldeamo ni a Twilio");
         }
     }
